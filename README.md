@@ -16,7 +16,7 @@ Scout then:
 6. Watches opted-in companies. Material signals (score ≥ 60) post to Slack/Notion.
 7. Sends a weekly **Gmail newsletter** (hero + company marks + editorial brief). A demo trigger sends the same letter.
 
-This repo implements [DESIGN.md](DESIGN.md). Demo checklist: [docs/DEMO.md](docs/DEMO.md).
+This repo implements [DESIGN.md](DESIGN.md).
 
 **Demo video:** [https://youtu.be/qCw7-3Pkf5c](https://youtu.be/qCw7-3Pkf5c)
 
