@@ -63,7 +63,7 @@ export async function runMonitorBatch(connectors: Connectors = liveConnectors())
     const trace = startTrace("scout.monitor", { window: scheduledFor, batch: batch.length });
 
     for (const watch of batch) {
-      const span = trace.span("monitoring:entity", { entityId: watch.entityId });
+      const span = trace.span("monitor-entity", { entityId: watch.entityId });
       try {
         const result = await monitorEntity(watch, connectors);
         material += result.wrote;

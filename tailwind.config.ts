@@ -5,19 +5,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#0b0e14",
-        panel: "#12161f",
-        panel2: "#171c28",
-        border: "#232a3a",
-        muted: "#8b94a7",
-        text: "#e6e9f0",
-        accent: "#5b9dff",
-        good: "#3fb950",
-        warn: "#d29922",
-        bad: "#f85149",
+        canvas: "#FDFCFC",
+        ink: {
+          DEFAULT: "#0f172a",
+          secondary: "#475569",
+          muted: "#64748b",
+          faint: "#94a3b8",
+        },
+        line: "#e2e8f0",
+        fill: {
+          DEFAULT: "#f1f5f9",
+          soft: "#f8fafc",
+        },
       },
-      fontFamily: {
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      boxShadow: {
+        card: "0 1px 3px rgba(15, 23, 42, 0.08)",
+        "card-lg": "0 18px 45px rgba(15, 23, 42, 0.08)",
+      },
+      letterSpacing: {
+        eyebrow: "0.18em",
       },
     },
   },

@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunSnapshot } from "@/lib/core/snapshot";
+import { triggerWeeklyRecap } from "@/app/actions";
 
-const DRIVABLE = new Set(["CREATED", "FAILED_RETRYABLE", "REVIEW_NEEDED", "RESEARCHING", "CREATING_DILIGENCE_PACK"]);
+export interface CompanySelection {
+  companyId: string;
+  slack: boolean;
+  email: boolean;
+  notion: boolean;
+}
+
+const DRIVABLE = new Set(["CREATED", "DISCOVERING", "RESEARCHING", "FAILED_RETRYABLE"]);
+const LIVE = new Set(["CREATED", "DISCOVERING", "RESEARCHING", "CREATING_DILIGENCE_PACK"]);
 
 /**
  * Run view model.
@@ -81,15 +90,28 @@ export function useRun(runId: string) {
     };
   }, [runId, drive]);
 
-  // Live SSE stream.
+  const runState = snapshot?.run.state;
+  const live = !!runState && LIVE.has(runState);
+
+  // SSE only while the run is actually moving. Settled runs (complete / waiting
+  // on the user) used to open, immediately close, then reconnect — that is what
+  // made the header flip Polling ↔ Live.
   useEffect(() => {
+    if (!live) {
+      setConnected(false);
+      return;
+    }
     const es = new EventSource(`/api/runs/${runId}/events`);
     esRef.current = es;
     es.onopen = () => setConnected(true);
     es.onmessage = () => scheduleRefetch();
-    // Named events also trigger a refetch.
     for (const t of [
       "state.changed",
+      "companies.discovered",
+      "company.selected",
+      "company.research.started",
+      "company.research.completed",
+      "company.diligence.completed",
       "identity.candidates",
       "identity.confirmed",
       "source.stored",
@@ -98,22 +120,25 @@ export function useRun(runId: string) {
       "dossier.ready",
       "action.receipt",
       "signal.detected",
+      "discovery.tool",
       "stream.settled",
       "run.error",
     ]) {
       es.addEventListener(t, () => scheduleRefetch());
     }
     es.onerror = () => setConnected(false);
-    return () => es.close();
-  }, [runId, scheduleRefetch]);
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [runId, live, scheduleRefetch]);
 
-  // Polling fallback: only active while SSE is not open.
+  // Silent fallback only while work is in flight and SSE is down.
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (!connected) void refetch();
-    }, 3000);
+    if (!live || connected) return;
+    const interval = setInterval(() => void refetch(), 4000);
     return () => clearInterval(interval);
-  }, [connected, refetch]);
+  }, [live, connected, refetch]);
 
   const confirm = useCallback(
     async (candidateId: string) => {
@@ -142,5 +167,26 @@ export function useRun(runId: string) {
     }
   }, [runId, refetch, drive]);
 
-  return { snapshot, connected, error, confirm, approve, refetch };
+  const select = useCallback(
+    async (selections: CompanySelection[]) => {
+      const res = await fetch(`/api/runs/${runId}/select`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ selections }),
+      });
+      if (res.ok) {
+        await refetch();
+        void drive(); // continue into parallel diligence
+      } else {
+        setError((await res.json()).error ?? "Failed to start diligence");
+      }
+    },
+    [runId, refetch, drive],
+  );
+
+  const triggerRecap = useCallback(async (to?: string) => {
+    return triggerWeeklyRecap(to);
+  }, []);
+
+  return { snapshot, connected, error, confirm, approve, select, triggerRecap, refetch };
 }

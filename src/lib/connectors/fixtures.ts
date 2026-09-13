@@ -107,6 +107,11 @@ class FixtureFetch implements FetchConnector {
 class FixtureNotion implements NotionConnector {
   readonly name = "notion" as const;
   constructor(private log: WriteLog[]) {}
+  async createDiligenceRecord(input: any) {
+    const pageId = `notion_${stableKey("page", input.title)}`;
+    this.log.push({ app: "notion", method: "createDiligenceRecord", args: input, externalId: pageId });
+    return { pageId, url: `https://notion.so/${pageId}` };
+  }
   async createFounderPage(input: any) {
     const pageId = `notion_${stableKey("page", input.title)}`;
     this.log.push({ app: "notion", method: "createFounderPage", args: input, externalId: pageId });
@@ -139,6 +144,10 @@ class FixtureGoogle implements GoogleConnector {
   async createDoc(title: string, markdown: string) {
     const docId = `doc_${stableKey("doc", title)}`;
     this.log.push({ app: "google", method: "createDoc", args: { title, markdown }, externalId: docId });
+    return { docId, url: `https://docs.google.com/document/d/${docId}/edit` };
+  }
+  async replaceDoc(docId: string, markdown: string) {
+    this.log.push({ app: "google", method: "replaceDoc", args: { docId, markdown }, externalId: docId });
     return { docId, url: `https://docs.google.com/document/d/${docId}/edit` };
   }
   async sendGmail(input: any) {

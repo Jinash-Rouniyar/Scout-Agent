@@ -1,21 +1,22 @@
 # Scout — Founder Discovery & Continuous Diligence
 
-**Status:** Draft for decision review — no design choice in this document is locked  
-**Date:** September 8, 2026  
+**Status:** Implemented — thesis-first demo ready  
+**Date:** September 13, 2026  
 **Audience:** Hackathon team, judges, prospective design partners
 
 ---
 
 ## Glossary
 
-- **Thesis** — The investor's natural-language definition of the founders they want to discover.
-- **Candidate** — A person returned by discovery who may merit diligence.
-- **Dossier** — A source-backed, investor-ready memo for one founder and their company.
-- **Claim** — A fact, interpretation, risk, or open question in a dossier.
+- **Thesis** — The investor's natural-language definition of the companies they want to discover.
+- **Candidate** — A company returned by discovery that may merit diligence.
+- **Diligence pack** — Per-company artifacts: on-screen brief, Google Doc memo, optional Slack / Notion / newsletter.
+- **Claim** — A fact, interpretation, risk, or open question in a memo.
 - **Evidence** — A source record used to support a claim; includes URL, retrieval time, source type, and extracted excerpt.
-- **Signal** — A newly detected, deduplicated event that may change conviction about a watched founder.
+- **Signal** — A newly detected, deduplicated event that may change conviction about a watched company.
 - **Conviction** — Scout's explicitly explained assessment of fit and momentum; never a fact.
-- **Watch** — A subscription to selected public sources for a founder/company.
+- **Watch** — A subscription to selected public sources for a company.
+- **Newsletter** — Weekly Gmail letter for opted-in companies (editorial brief, company marks, what moved). Distinct from Slack alerts.
 - **Action receipt** — The durable record of an external write, including app, object ID, timestamp, request fingerprint, and outcome.
 
 ---
@@ -24,20 +25,21 @@
 
 ### 1.1 What We Are Building
 
-Scout is a web application for early-stage investors that takes a person or company, builds evidence-backed diligence, and keeps an investment team aware of meaningful progress after that entity is added to a watchlist.
+Scout is a web application for early-stage investors that starts from an **investment thesis**, surfaces a shortlist of matching companies, and builds evidence-backed diligence only for the ones the investor selects.
 
-An investor provides a GitHub URL, company website, professional-profile link, or name, optionally with an investment lens such as:
+An investor provides a thesis such as:
 
-> Find technical founders building AI infrastructure with credible open-source traction.
+> Find pre-seed founders building developer infrastructure for AI agents, with meaningful open-source traction.
 
 Scout then:
 
-1. Uses Exa People Search to resolve/enrich professional history for a person input without scraping LinkedIn.
-2. Investigates the person/company with GitHub, public company sources, and a general-web research adapter.
-3. Separates facts, investment interpretations, risks, and unresolved questions in a dossier.
-4. Creates a Notion founder record, Google Doc diligence memo, and Slack dealflow thread after approval.
-5. Monitors watched founders daily; material updates change the Notion timeline and post to the founder's Slack thread.
-6. Produces a weekly Gmail recap of meaningful portfolio/watchlist movement.
+1. Discovers 5–8 real companies that fit the thesis (web + GitHub; never invented).
+2. Lets the investor select companies and choose delivery per company: Slack monitoring, newsletter, Notion record.
+3. Researches selected companies in parallel and scores opportunity + confidence.
+4. Writes a **Google Doc as the canonical full report** (Heading 1/2 so the outline lists sections). Slack is a short alert + link. Notion is a structured record — not three copies of the same memo.
+5. Shows a brief on-screen overview (scores, why-now, expandable details). The full memo lives in the Doc.
+6. Monitors opted-in companies; material signals post to Slack/Notion only when those options were selected.
+7. Sends a weekly **Gmail newsletter** (hero, company logos, editorial brief, what moved). A demo trigger sends a fresh letter to any inbox.
 
 Scout is not a general-purpose work agent, CRM, or LinkedIn scraper. It is a focused intelligence system for the question: **who should we know before everyone else does, and what evidence supports that view?**
 
@@ -53,15 +55,15 @@ Existing broad assistants can search and summarize, but do not create a durable,
 
 ### 1.3 Hackathon Scope
 
-The demonstrable MVP will support technical-founder/company diligence only:
+The demonstrable MVP is thesis-first company diligence:
 
-- One person/company input plus an optional thesis lens → a structured dossier.
-- A linked founder/company relationship when both entities are available.
-- Real external writes to Notion, Google Docs, and Slack.
-- A watch toggle and one real, deterministic GitHub-derived signal.
-- A weekly-recap preview; live Gmail sending is a stretch goal.
+- Thesis → 5–8 company shortlist → user selects companies + delivery options → parallel diligence packs.
+- Google Doc is always the full report. Slack / newsletter / Notion are opt-in and non-duplicative.
+- Real external writes to Notion, Google Docs, Slack, and Gmail.
+- Daily monitoring only for companies the user chose to watch.
+- Weekly Gmail newsletter with a manual demo trigger.
 
-Out of scope for the MVP: broad candidate-list discovery, outbound outreach, CRM replacement, LinkedIn scraping, team permissions, custom workflow builders, and broad browser automation.
+Out of scope for the MVP: outbound outreach, CRM replacement, LinkedIn scraping, team permissions, custom workflow builders, and broad browser automation.
 
 ---
 
@@ -74,14 +76,14 @@ An early-stage investor or researcher who sources technical founders before a co
 ### 2.2 Primary Workflow
 
 ```text
-Person/company input + optional investment lens
-  → entity resolution and enrichment
-  → technical and market research
-  → founder/company dossier
-  → approved diligence pack in Notion + Docs + Slack
-  → daily monitoring
-  → major milestone in founder Slack thread
-  → weekly investor recap
+Investment thesis
+  → discover 5–8 matching companies
+  → user selects companies + Slack / newsletter / Notion
+  → parallel research + scored brief
+  → Google Doc full report (always)
+  → optional Slack alert, Notion record, newsletter watch
+  → daily monitoring (opted-in surfaces only)
+  → weekly investor newsletter (dev-triggerable)
 ```
 
 ### 2.3 Product Surfaces
@@ -90,58 +92,52 @@ Scout should be a web app. Slack and Notion are destinations for work, not the c
 
 | View | Purpose | Essential content |
 |---|---|---|
-| Thesis | Start a scouting run | Thesis, focus signals, run status |
-| Scout Run | Make agent execution legible | Live plan, tool events, candidate board, source count |
-| Founder Dossier | Make a decision | Why now, evidence, risks, open questions, actions |
-| Watchlist | Monitor ongoing conviction | Signal timeline, changed assessment, founder status |
-| Run/Action Receipt | Establish trust | Source provenance, tool calls, external writes, retries |
+| Thesis | Start a scouting run | Investment thesis |
+| Shortlist | Pick companies | 5–8 names, why they fit, select + delivery toggles |
+| Diligence results | Decide quickly | Scores, why-now, Doc link, delivery status |
+| Watchlist | Monitor ongoing conviction | Signal timeline, View diligence pack |
+| Evaluation | Reliability brief | Real `evals/report.json` only — never invented scores |
+| Langfuse | Make the agent legible | Nested discovery / research / write steps |
 
 ### 2.4 UI Direction
 
 The UI should resemble an investment-intelligence cockpit, not a generic chat window.
 
-**Research screen**
+**Thesis screen**
 
 ```text
-Who or what are you diligencing?
+What are you looking to invest in?
 
-[ GitHub URL, company website, profile link, or name ]
-
-Investment lens (optional): [ AI infrastructure, early stage, open-source traction ]
-                                                               [ Start Scout ]
+[ Find pre-seed founders building developer infrastructure for AI agents… ]
+                                                     [ Discover companies ]
 ```
 
-**Scout Run screen** — avoids a blank loading state. Server events progressively populate:
+**Shortlist**
 
 ```text
-Research plan                    Candidate board
-✓ Find relevant people           Jane Doe       High conviction
-● Verify technical work          Alex Kim       Medium conviction
-○ Investigate public sources     Sam Lee        Medium conviction
-○ Form conviction
+Lemma          Production monitoring for AI agents     [ ] select
+               Slack  Newsletter  Notion
 
-Evidence arriving
-Exa People: 42 profiles found   GitHub: 6 repos analysed   Web: 14 sources
+Orbital Agents Open-source agent runtime               [x] select
+               Slack  Newsletter  Notion
+
+                                          [ Create diligence pack (1) ]
 ```
 
-Candidates may be plotted on an explainable two-axis map: technical depth × momentum. The map is a prioritization visual, not an assertion of objective truth; every score must be explainable in the dossier.
-
-**Founder dossier**
+**Results** — brief on screen; full memo is the Google Doc.
 
 ```text
-Jane Doe                                      Conviction: High ↑
+Orbital Agents                         Opportunity 78   Confidence 68
+Why now: …one paragraph…
 
-Why now              Evidence              Risks / open questions
-...                  ...                   ...
+[ Show details ]     Doc link · facts / risks / open questions
 
-Timeline
-Sep 10 — repository launched
-Sep 12 — first external contributor
+Newsletter · Slack monitoring · Notion record
 
-[ Create diligence pack ] [ Add to watchlist ]
+[ Send newsletter ]   ← demo / developer
 ```
 
-**Watchlist** groups changes by founder. A major signal has a dedicated Slack thread; minor activity remains in the app timeline to prevent alert fatigue.
+**Watchlist** groups changes by company. A major signal posts only to the surfaces the user opted into; minor activity stays in the app.
 
 ---
 
@@ -173,18 +169,20 @@ This is agentic without allowing a model to make unbounded browser, shell, or co
 
 ### 3.3 Run State Machine
 
+Thesis-first flow (shipped):
+
 ```text
 CREATED
   → DISCOVERING
-  → SHORTLIST_READY
+  → AWAITING_SELECTION
   → RESEARCHING
-  → VALIDATING
-  → READY_FOR_REVIEW
   → CREATING_DILIGENCE_PACK
-  → WATCHING
+  → COMPLETED / WATCHING
 
 Any state → FAILED_RETRYABLE | FAILED_TERMINAL | CANCELLED
 ```
+
+Legacy single-entity research still uses `RESOLVING_IDENTITY` → `READY_FOR_REVIEW` (eval harness).
 
 Each state is persisted. A failed GitHub call can retry without rerunning Exa discovery or duplicating a Notion page.
 
@@ -217,9 +215,9 @@ Daily scheduler
   → retain silent event otherwise
 
 Friday scheduler
-  → summarize material signals
-  → create Gmail recap draft/send
-  → post a compact Slack digest
+  → write weekly newsletter (hero, company marks, editorial brief)
+  → send Gmail
+  → post a compact Slack digest (cron only; demo override does not re-post Slack)
 ```
 
 Monitoring is not an Exa People recurring query. Exa is a discovery/identity layer; monitoring is based on direct public-source adapters.
@@ -236,7 +234,7 @@ Monitoring is not an Exa People recurring query. Exa is a discovery/identity lay
 | Notion | Team source of truth | Create founder page; append signal timeline |
 | Google Docs | Shareable long-form diligence memo | Create/update dossier |
 | Slack | Dealflow discussion and urgent signal delivery | Create/post a founder thread; weekly digest |
-| Gmail | Investor weekly briefing | Create/send recap; stretch goal for MVP |
+| Gmail | Investor weekly newsletter | Send HTML letter with hero + company logos |
 
 ### 4.1 No LinkedIn Scraping
 
@@ -674,12 +672,12 @@ Use a real prior research run for the rich dossier, then perform real external w
 
 | Time | Screen/action | What it proves |
 |---|---|---|
-| 0:00–0:15 | Paste a founder GitHub URL or company website and select an investment lens | Clear user problem and purpose-built interface |
-| 0:15–0:40 | Accelerated live/replayed event stream: identity enrichment → GitHub → web evidence | Multi-step research agent, not a static report |
-| 0:40–1:05 | Open a top founder dossier | Grounded conviction, risks, and open questions |
-| 1:05–1:30 | Approve diligence pack; show Notion, Docs, Slack receipts completing | Action across three external apps |
-| 1:30–1:50 | Trigger monitor check against a controlled GitHub test repository with a real new release/commit | Deterministic continuous intelligence loop |
-| 1:50–2:00 | Show updated Notion timeline + Slack thread, then watchlist | End-to-end outcome |
+| 0:00–0:15 | Enter a thesis on `/` and start a run | Thesis-first sourcing, not paste-one-company |
+| 0:15–0:40 | Watch discovery, then select companies + Slack / newsletter / Notion | Bounded agent + human configure step |
+| 0:40–1:05 | Parallel research cards fill; open the Google Doc report | Grounded conviction, outline-ready memo |
+| 1:05–1:30 | Show Slack alert, Notion record, watchlist | Differentiated writes, not three copies |
+| 1:30–1:50 | Send newsletter from the run page | Editorial weekly letter with logos |
+| 1:50–2:00 | `/evals` (real report or honest empty state) and Langfuse | Reliability is measured, never invented |
 
 The demo may use a clearly labeled cached/replayed research trace for speed, but write actions and monitor event must be real. It must not represent mocked calls as live integrations.
 
@@ -696,7 +694,7 @@ The demo may use a clearly labeled cached/replayed research trace for speed, but
 | Live updates | Server-Sent Events | Simple one-way worker-to-browser run trace | Recommended; pending |
 | Agent schema | TypeScript validation schemas | Enforce tool/claim/action contracts | Recommended; pending |
 | Observability/evals | Langfuse Cloud for hackathon; self-hostable Langfuse later | Trace tool trajectories, datasets, experiments, scores, cost, and latency | Selected; public sources/redacted telemetry only |
-| Hosting | Managed web + managed Postgres | Fast demo deployment | Pending cost/team preference |
+| Hosting | Vercel + Neon Postgres | Fast demo deployment | Selected |
 
 Suggested repository shape:
 
@@ -748,7 +746,7 @@ This sequence is intentionally biased toward a credible, finishable demo rather 
 | 4 | Notion + Google Docs + Slack approved action pack | Must have |
 | 5 | GitHub watch check, dedupe, Notion/Slack material signal | Must have |
 | 6 | Demo polish, SSE trace, evaluation fixtures, action receipts | Must have |
-| 7 | Gmail weekly recap and general-web monitoring | Must have |
+| 7 | Gmail weekly newsletter and general-web monitoring | Must have |
 
 ### Explicit MVP Cut Line
 

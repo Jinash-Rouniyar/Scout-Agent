@@ -14,7 +14,11 @@ function sse(seq: number, type: string, data: unknown): string {
 /** A settled state means the client should stop waiting for automatic progress
  *  and take an action (confirm identity, review dossier, or acknowledge failure). */
 async function isSettled(runId: string, state: RunState): Promise<boolean> {
-  if (["READY_FOR_REVIEW", "REVIEW_NEEDED", "COMPLETED", "WATCHING", "FAILED_TERMINAL", "CANCELLED"].includes(state)) {
+  if (
+    ["AWAITING_SELECTION", "READY_FOR_REVIEW", "REVIEW_NEEDED", "COMPLETED", "WATCHING", "FAILED_TERMINAL", "CANCELLED"].includes(
+      state,
+    )
+  ) {
     return true;
   }
   if (state === "RESOLVING_IDENTITY") {

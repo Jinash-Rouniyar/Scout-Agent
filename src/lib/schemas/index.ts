@@ -4,6 +4,8 @@ import { z } from "zod";
 
 export const RUN_STATES = [
   "CREATED",
+  "DISCOVERING",
+  "AWAITING_SELECTION",
   "RESOLVING_IDENTITY",
   "RESEARCHING",
   "VALIDATING",
@@ -18,7 +20,7 @@ export const RUN_STATES = [
 ] as const;
 export type RunState = (typeof RUN_STATES)[number];
 
-export const InputKind = z.enum(["github_url", "company_url", "profile_url", "name"]);
+export const InputKind = z.enum(["thesis", "github_url", "company_url", "profile_url", "name"]);
 export type InputKind = z.infer<typeof InputKind>;
 
 // ---- Claims ------------------------------------------------------------------

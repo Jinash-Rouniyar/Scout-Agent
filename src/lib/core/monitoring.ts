@@ -316,7 +316,7 @@ export async function monitorEntity(watch: WatchRow, connectors: Connectors): Pr
 
     if (sig.materiality >= 60) {
       // Notion timeline (idempotent)
-      if (watch.notionPageId) {
+      if (watch.notionRecord && watch.notionPageId) {
         await withReceipt(
           { entityId: entity.id, actionType: "notion_timeline", targetApp: "notion", scopeKey: sig.dedupeKey },
           async () => {
@@ -326,7 +326,7 @@ export async function monitorEntity(watch: WatchRow, connectors: Connectors): Pr
         );
       }
       // Founder Slack thread (idempotent)
-      if (watch.slackThreadTs && channel) {
+      if (watch.slackMonitor && watch.slackThreadTs && channel) {
         await withReceipt(
           { entityId: entity.id, actionType: "slack_post", targetApp: "slack", scopeKey: sig.dedupeKey },
           async () => {

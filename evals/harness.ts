@@ -24,7 +24,7 @@ import type { Scenario, Trajectory } from "./types";
  *  Claude Sonnet 5, validators, scoring, and monitoring all run for real. */
 export async function runTrial(scenario: Scenario): Promise<Trajectory> {
   const { connectors, writes } = makeFixtureConnectors(scenario.fixtures);
-  const trace = startTrace(`eval.${scenario.id}`, { scenario: scenario.id, family: scenario.family });
+  const trace = startTrace("eval-scenario", { scenario: scenario.id, family: scenario.family });
 
   try {
     if (scenario.kind === "monitoring") {
@@ -32,7 +32,7 @@ export async function runTrial(scenario: Scenario): Promise<Trajectory> {
       t.traceId = trace.id;
       return t;
     }
-    const t = await runResearchTrial(scenario, connectors, writes);
+    const t = await runResearchTrial(scenario, connectors, writes, trace);
     t.traceId = trace.id;
     return t;
   } finally {
@@ -40,7 +40,12 @@ export async function runTrial(scenario: Scenario): Promise<Trajectory> {
   }
 }
 
-async function runResearchTrial(scenario: Scenario, connectors: ReturnType<typeof makeFixtureConnectors>["connectors"], writes: WriteLog[]): Promise<Trajectory> {
+async function runResearchTrial(
+  scenario: Scenario,
+  connectors: ReturnType<typeof makeFixtureConnectors>["connectors"],
+  writes: WriteLog[],
+  trace: ReturnType<typeof startTrace>,
+): Promise<Trajectory> {
   const runId = id("evalrun");
   await db.insert(scoutRuns).values({
     id: runId,
@@ -50,7 +55,7 @@ async function runResearchTrial(scenario: Scenario, connectors: ReturnType<typeo
     state: "CREATED",
   });
 
-  await executeRun(runId, { connectors, deadline: Date.now() + 120_000 });
+  await executeRun(runId, { connectors, deadline: Date.now() + 120_000, trace });
 
   // Duplicate-write scenario: approve the pack TWICE with the same connectors.
   if (scenario.kind === "duplicate_write") {

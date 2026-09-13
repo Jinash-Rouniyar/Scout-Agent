@@ -4,7 +4,7 @@ import type { Connectors } from "@/lib/connectors/types";
 import { SynthesisSchema, type Synthesis } from "@/lib/schemas";
 import { db } from "@/lib/db/client";
 import { sources } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { emit } from "./events";
 import {
   executeTool,
@@ -117,7 +117,7 @@ export async function runResearch(params: ResearchParams): Promise<ResearchOutco
     const budgetExhausted = budget.toolCalls >= MAX_TOOL_CALLS || budget.docs >= MAX_DOCS;
     const tools = budgetExhausted ? [SUBMIT_TOOL] : [...RESEARCH_TOOLS, SUBMIT_TOOL];
 
-    const synthSpan = params.trace.span("model:turn", { iter, budget });
+    const synthSpan = params.trace.generation("model-turn", { iter, budget }, { model: SCOUT_MODEL });
     let response: Anthropic.Message;
     try {
       response = await client.messages.create({
@@ -132,7 +132,11 @@ export async function runResearch(params: ResearchParams): Promise<ResearchOutco
       synthSpan.end({ error: e instanceof Error ? e.message : "model-error" });
       return { status: "review_needed", reason: `Model call failed: ${e instanceof Error ? e.message : "unknown"}`, budget };
     }
-    synthSpan.end({ stopReason: response.stop_reason });
+    synthSpan.end({
+      stopReason: response.stop_reason,
+      usage: response.usage,
+      tools: response.content.filter((b) => b.type === "tool_use").map((b) => b.name),
+    });
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -170,9 +174,16 @@ export async function runResearch(params: ResearchParams): Promise<ResearchOutco
     messages.push({ role: "user", content: toolResults });
 
     if (finished && submitted) {
-      // Grounding validation gate.
+      // Grounding validation gate. Scope stored sources to THIS entity so that,
+      // in a multi-company thesis run, one company's claims can never validate
+      // against another company's sources.
       const storedIds = new Set(
-        (await db.select({ id: sources.id }).from(sources).where(eq(sources.runId, params.runId))).map((r) => r.id),
+        (
+          await db
+            .select({ id: sources.id })
+            .from(sources)
+            .where(and(eq(sources.runId, params.runId), eq(sources.entityId, params.entity.id)))
+        ).map((r) => r.id),
       );
       const validation = validateClaims(submitted.claims, storedIds);
       await emit(params.runId, "validation.result", { ok: validation.ok, stats: validation.stats, errors: validation.errors });

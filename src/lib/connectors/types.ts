@@ -116,8 +116,29 @@ export interface FetchConnector {
 
 // ---- Write connectors --------------------------------------------------------
 
+export interface DiligenceRecordInput {
+  title: string;
+  domain?: string;
+  githubUrl?: string;
+  thesis?: string;
+  opportunityScore: number;
+  confidenceScore: number;
+  label: string;
+  whyNow: string;
+  summary: string;
+  docUrl?: string;
+  claims: {
+    fact: string[];
+    interpretation: string[];
+    risk: string[];
+    open_question: string[];
+  };
+}
+
 export interface NotionConnector {
   readonly name: "notion";
+  /** Create a rich diligence record: typed DB properties + structured page body. */
+  createDiligenceRecord(input: DiligenceRecordInput): Promise<{ pageId: string; url: string }>;
   createFounderPage(input: {
     title: string;
     summary: string;
@@ -135,10 +156,24 @@ export interface SlackConnector {
   postToThread(channel: string, threadTs: string, text: string): Promise<{ ts: string }>;
 }
 
+export interface EmailInlineImage {
+  cid: string;
+  filename: string;
+  mimeType: string;
+  data: Buffer;
+}
+
 export interface GoogleConnector {
   readonly name: "google";
   createDoc(title: string, markdown: string): Promise<{ docId: string; url: string }>;
-  sendGmail(input: { to: string; subject: string; body: string }): Promise<{ messageId: string }>;
+  replaceDoc?(docId: string, markdown: string): Promise<{ docId: string; url: string }>;
+  sendGmail(input: {
+    to: string;
+    subject: string;
+    body: string;
+    html?: string;
+    images?: EmailInlineImage[];
+  }): Promise<{ messageId: string }>;
 }
 
 // ---- Bundle ------------------------------------------------------------------

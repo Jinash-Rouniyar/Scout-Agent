@@ -2,22 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-html,
-body {
-  background: #0b0e14;
-  color: #e6e9f0;
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    @apply bg-canvas text-slate-900 antialiased;
+  }
 
-body {
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
-* {
-  border-color: #232a3a;
+  * {
+    @apply border-slate-200;
+  }
 }

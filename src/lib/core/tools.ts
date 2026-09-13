@@ -186,7 +186,7 @@ export async function executeTool(
   input: Record<string, unknown>,
 ): Promise<unknown> {
   ctx.budget.toolCalls++;
-  const span: Span = ctx.trace.span(`tool:${name}`, input);
+  const span: Span = ctx.trace.tool(name.replaceAll("_", "-"), input);
   await emit(ctx.runId, "tool.call", { name, input, toolCalls: ctx.budget.toolCalls });
 
   try {

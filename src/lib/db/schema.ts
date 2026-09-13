@@ -28,9 +28,9 @@ import {
 
 export const scoutRuns = pgTable("scout_runs", {
   id: text("id").primaryKey(),
-  // Free-text entity input as supplied by the user.
+  // For thesis runs this holds the thesis text (input_kind = "thesis").
   input: text("input").notNull(),
-  inputKind: text("input_kind").notNull(), // github_url | company_url | profile_url | name
+  inputKind: text("input_kind").notNull(), // thesis | github_url | company_url | profile_url | name
   thesis: text("thesis"),
   state: text("state").notNull().default("CREATED"),
   entityId: text("entity_id"),
@@ -80,6 +80,53 @@ export const identityCandidates = pgTable(
   },
   (t) => ({
     byRun: index("identity_candidates_run_idx").on(t.runId),
+  }),
+);
+
+// ---- Thesis discovery: candidate companies ----------------------------------
+
+/**
+ * Companies surfaced by the discovery agent from an investment thesis. Each row
+ * is a candidate the user can select for a diligence pack, choosing per-company
+ * delivery options (Slack monitor / newsletter / Notion record). Once selected
+ * it is enriched in place with the diligence result (entity, scores, artifacts).
+ */
+export const discoveredCompanies = pgTable(
+  "discovered_companies",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id").notNull(),
+    rank: integer("rank").notNull(),
+    name: text("name").notNull(),
+    domain: text("domain"),
+    githubOrg: text("github_org"),
+    oneLiner: text("one_liner"),
+    whyMatch: text("why_match"),
+    raw: jsonb("raw"),
+    // User selection + per-company delivery options.
+    selected: boolean("selected").notNull().default(false),
+    optSlack: boolean("opt_slack").notNull().default(false),
+    optEmail: boolean("opt_email").notNull().default(false),
+    optNotion: boolean("opt_notion").notNull().default(false),
+    // Diligence result (filled after research + writes).
+    status: text("status").notNull().default("pending"), // pending | researching | ready | failed
+    entityId: text("entity_id"),
+    dossierId: text("dossier_id"),
+    opportunityScore: integer("opportunity_score"),
+    confidenceScore: integer("confidence_score"),
+    label: text("label"),
+    whyNow: text("why_now"),
+    summary: text("summary"),
+    docUrl: text("doc_url"),
+    docId: text("doc_id"),
+    notionPageId: text("notion_page_id"),
+    slackThreadTs: text("slack_thread_ts"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    byRun: index("discovered_companies_run_idx").on(t.runId),
   }),
 );
 
@@ -148,6 +195,11 @@ export const watches = pgTable("watches", {
   sourceConfig: jsonb("source_config"),
   slackThreadTs: text("slack_thread_ts"),
   notionPageId: text("notion_page_id"),
+  docUrl: text("doc_url"),
+  // Per-watch delivery options chosen at diligence time.
+  slackMonitor: boolean("slack_monitor").notNull().default(true),
+  weeklyEmail: boolean("weekly_email").notNull().default(false),
+  notionRecord: boolean("notion_record").notNull().default(true),
   watchStart: timestamp("watch_start", { withTimezone: true }).defaultNow().notNull(),
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
   // per-entity failure counter used for retry<=3 across cron runs
@@ -262,6 +314,7 @@ export const cronLeases = pgTable("cron_leases", {
 });
 
 export type ScoutRun = typeof scoutRuns.$inferSelect;
+export type DiscoveredCompany = typeof discoveredCompanies.$inferSelect;
 export type Entity = typeof entities.$inferSelect;
 export type Source = typeof sources.$inferSelect;
 export type Claim = typeof claims.$inferSelect;

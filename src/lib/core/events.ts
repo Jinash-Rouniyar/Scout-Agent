@@ -7,6 +7,12 @@ import { assertTransition } from "./stateMachine";
 export type RunEventType =
   | "run.created"
   | "state.changed"
+  | "discovery.tool"
+  | "companies.discovered"
+  | "company.selected"
+  | "company.research.started"
+  | "company.research.completed"
+  | "company.diligence.completed"
   | "identity.candidates"
   | "identity.confirmed"
   | "tool.call"

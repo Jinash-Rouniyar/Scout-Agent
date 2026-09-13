@@ -1,34 +1,47 @@
 import { NewRunForm } from "./NewRunForm";
-import { Card } from "@/components/ui";
+import { Card, Eyebrow, PageTitle } from "@/components/ui";
+
+const EXAMPLE_THESES = [
+  "Pre-seed founders building developer infrastructure for AI agents, with meaningful open-source traction.",
+  "Seed-stage companies making observability tooling for LLM applications.",
+  "Early teams shipping open-source developer tools with fast-growing GitHub communities.",
+];
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Who or what are you diligencing?</h1>
-        <p className="mt-2 text-sm text-muted">
-          Scout deeply researches one person or company you supply, backs every fact with a stored
-          source, and keeps watching after you add them to your watchlist.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <section className="space-y-6">
+        <Eyebrow>Thesis-driven sourcing</Eyebrow>
+        <PageTitle sub="Describe your investment thesis. Scout finds 5–8 matching companies, then builds an evidence-backed diligence pack for the ones you pick — full memo, Notion record, Slack monitoring, and a weekly newsletter.">
+          What are you looking to invest in?
+        </PageTitle>
+      </section>
 
-      <Card>
-        <NewRunForm />
+      <Card shadow="lg" className="max-w-3xl">
+        <NewRunForm examples={EXAMPLE_THESES} />
       </Card>
 
-      <div className="mt-6 grid grid-cols-3 gap-3 text-xs text-muted">
-        <div className="rounded-lg border border-border bg-panel2 p-3">
-          Paste a <span className="text-text">GitHub URL</span>, company website, profile link, or name.
-        </div>
-        <div className="rounded-lg border border-border bg-panel2 p-3">
-          A LinkedIn URL is <span className="text-text">identity context only</span> — Scout never
-          scrapes it.
-        </div>
-        <div className="rounded-lg border border-border bg-panel2 p-3">
-          Every claim is separated into <span className="text-text">fact, interpretation, risk, and open
-          question</span>.
-        </div>
-      </div>
+      <section className="grid gap-4 md:grid-cols-3">
+        {[
+          {
+            title: "1 · Discover",
+            body: "Scout scans the market and returns a shortlist of companies that fit your thesis.",
+          },
+          {
+            title: "2 · Select",
+            body: "Pick the companies worth pursuing and choose delivery: Slack, newsletter, Notion.",
+          },
+          {
+            title: "3 · Diligence",
+            body: "Parallel research produces scored memos with facts, risks, and open questions.",
+          },
+        ].map((item) => (
+          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-900">{item.title}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{item.body}</p>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }

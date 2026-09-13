@@ -19,7 +19,7 @@ function fakeConnectors(over: {
     },
     search: { name: "search", async search(q) { return { query: q, provider: "fake", results: [], degraded: false }; } },
     fetch: { name: "fetch", async fetchPage(url) { return { url, finalUrl: url, status: 200, title: null, text: "", contentHash: "x" }; } },
-    notion: { name: "notion", async createFounderPage() { return { pageId: "p", url: "u" }; }, async appendTimeline() { return { ok: true }; } },
+    notion: { name: "notion", async createDiligenceRecord() { return { pageId: "p", url: "u" }; }, async createFounderPage() { return { pageId: "p", url: "u" }; }, async appendTimeline() { return { ok: true }; } },
     slack: { name: "slack", async createThread() { return { ts: "t" }; }, async postToThread() { return { ts: "t" }; } },
     google: { name: "google", async createDoc() { return { docId: "d", url: "u" }; }, async sendGmail() { return { messageId: "m" }; } },
   };

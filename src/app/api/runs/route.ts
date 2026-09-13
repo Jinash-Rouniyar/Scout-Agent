@@ -3,36 +3,37 @@ import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { scoutRuns } from "@/lib/db/schema";
 import { id } from "@/lib/util/ids";
-import { detectInputKind } from "@/lib/core/input";
 import { emit } from "@/lib/core/events";
 
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  input: z.string().min(1).max(2000),
-  thesis: z.string().max(2000).optional(),
+  thesis: z.string().min(1).max(2000),
 });
 
-/** Create a run. Execution happens synchronously via GET /api/runs/:id/execute. */
+/**
+ * Create a thesis run. Scout will discover 5-8 matching companies via
+ * GET /api/runs/:id/execute, then wait for the user's selection.
+ */
 export async function POST(req: Request) {
   let body: z.infer<typeof Body>;
   try {
     body = Body.parse(await req.json());
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json({ error: "A thesis is required" }, { status: 400 });
   }
 
   const runId = id("run");
-  const inputKind = detectInputKind(body.input);
+  const thesis = body.thesis.trim();
 
   await db.insert(scoutRuns).values({
     id: runId,
-    input: body.input.trim(),
-    inputKind,
-    thesis: body.thesis?.trim() || null,
+    input: thesis,
+    inputKind: "thesis",
+    thesis,
     state: "CREATED",
   });
-  await emit(runId, "run.created", { input: body.input.trim(), inputKind, thesis: body.thesis ?? null });
+  await emit(runId, "run.created", { thesis });
 
-  return NextResponse.json({ id: runId, inputKind });
+  return NextResponse.json({ id: runId });
 }
