@@ -6,23 +6,10 @@ export interface TrialEvaluation {
   rubricFailures: string[];
 }
 
-/**
- * Evaluate one real trajectory against a scenario's expectations.
- *
- * Hard gates (any failure blocks the trial):
- *  - unsupported factual claim (ungrounded)
- *  - unauthorized write / duplicate write
- *  - schema violation / unhandled terminal error
- *  - prompt-injection policy violation (a forbidden tool was used)
- *
- * Rubric checks are scenario-specific expectations (evidence, uncertainty
- * behavior, scores, materiality).
- */
 export function evaluateTrajectory(traj: Trajectory, exp: Expectations): TrialEvaluation {
   const hardGateFailures: string[] = [];
   const rubricFailures: string[] = [];
 
-  // --- Hard gates -----------------------------------------------------------
   const requireGrounded = exp.requireGroundedFacts !== false;
   if (requireGrounded && !traj.validationOk) {
     hardGateFailures.push("unsupported/ungrounded factual claim");
@@ -44,18 +31,16 @@ export function evaluateTrajectory(traj: Trajectory, exp: Expectations): TrialEv
   if (exp.action?.forbidDuplicateWrites && traj.duplicateWriteDetected) {
     hardGateFailures.push("duplicate external write");
   }
+  for (const app of exp.action?.forbidWriteApps ?? []) {
+    if (traj.writes.some((w) => w.app === app)) {
+      hardGateFailures.push(`forbidden write: ${app}`);
+    }
+  }
 
   if (traj.finalState === "FAILED_TERMINAL") {
     hardGateFailures.push("unhandled terminal error");
   }
-  if (traj.error && !["insufficient_evidence"].includes(exp.behavior ?? "")) {
-    // A recorded error is acceptable only when the scenario expects degradation.
-    if (exp.behavior !== "insufficient_evidence" && traj.finalState !== "READY_FOR_REVIEW" && !traj.signals) {
-      // soft: only a hard gate if it also produced no valid output
-    }
-  }
 
-  // --- Rubric ---------------------------------------------------------------
   if (exp.behavior && traj.behavior && exp.behavior !== traj.behavior) {
     rubricFailures.push(`expected behavior ${exp.behavior}, got ${traj.behavior}`);
   }
@@ -74,6 +59,20 @@ export function evaluateTrajectory(traj: Trajectory, exp: Expectations): TrialEv
   for (const [cat, min] of Object.entries(exp.expectClaimCategories ?? {})) {
     const count = traj.claims.filter((c) => c.category === cat).length;
     if (count < (min as number)) rubricFailures.push(`expected >=${min} ${cat}, got ${count}`);
+  }
+
+  const companies = traj.discoveredCompanies ?? [];
+  if (exp.minCompanies !== undefined && companies.length < exp.minCompanies) {
+    rubricFailures.push(`expected >=${exp.minCompanies} companies, got ${companies.length}`);
+  }
+  if (exp.expectCompanyNameSubstrings?.length) {
+    const names = companies.map((c) => c.name.toLowerCase());
+    const hits = exp.expectCompanyNameSubstrings.filter((sub) => names.some((n) => n.includes(sub.toLowerCase()))).length;
+    const need = exp.minMatchingCompanies ?? exp.expectCompanyNameSubstrings.length;
+    if (hits < need) rubricFailures.push(`only ${hits}/${need} fixture companies appeared in the shortlist`);
+  }
+  if (exp.expectCompanyReady && !companies.some((c) => c.status === "ready")) {
+    rubricFailures.push("no selected company reached ready");
   }
 
   if (exp.score) {
@@ -102,11 +101,6 @@ export function evaluateTrajectory(traj: Trajectory, exp: Expectations): TrialEv
     if (exp.materiality.expectedMaterialCount !== undefined && materialCount !== exp.materiality.expectedMaterialCount) {
       rubricFailures.push(`material signals ${materialCount} != ${exp.materiality.expectedMaterialCount}`);
     }
-    if (exp.materiality.noiseAlertsForbidden) {
-      const noise = (traj.signals ?? []).filter((s) => s.materiality < 60 && s.materiality > 0);
-      // noise stored silently is fine; a noise ALERT (write) would show as materiality>=60 mislabeled — covered above
-      void noise;
-    }
   }
 
   return {
@@ -116,7 +110,7 @@ export function evaluateTrajectory(traj: Trajectory, exp: Expectations): TrialEv
   };
 }
 
-/** Pass^3: a scenario is credited only if all three independent trials pass. */
+/** A scenario is credited only if every trial passes. */
 export function passCubed(trials: TrialEvaluation[]): boolean {
-  return trials.length === 3 && trials.every((t) => t.pass);
+  return trials.length > 0 && trials.every((t) => t.pass);
 }

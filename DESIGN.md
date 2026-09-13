@@ -677,9 +677,9 @@ Use a real prior research run for the rich dossier, then perform real external w
 | 0:40–1:05 | Parallel research cards fill; open the Google Doc report | Grounded conviction, outline-ready memo |
 | 1:05–1:30 | Show Slack alert, Notion record, watchlist | Differentiated writes, not three copies |
 | 1:30–1:50 | Send newsletter from the run page | Editorial weekly letter with logos |
-| 1:50–2:00 | `/evals` (real report or honest empty state) and Langfuse | Reliability is measured, never invented |
+| 1:50–2:00 | `/evals` — measured `evals/report.json` only (suite is pre-run; do not execute 36 trajectories live) | Reliability is measured, never invented |
 
-The demo may use a clearly labeled cached/replayed research trace for speed, but write actions and monitor event must be real. It must not represent mocked calls as live integrations.
+The demo may use a clearly labeled cached/replayed research trace for speed, but write actions and monitor event must be real. It must not represent mocked calls as live integrations. A live thesis run can fill the two minutes by itself — in that case skip to `/evals` and show the pre-run reliability dashboard.
 
 ---
 

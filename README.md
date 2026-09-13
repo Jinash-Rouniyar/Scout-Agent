@@ -8,7 +8,7 @@ A thesis looks like:
 
 Scout then:
 
-1. Discovers a shortlist (web + GitHub; never invented).
+1. Discovers a shortlist (web + GitHub).
 2. Lets you select companies and choose delivery: Slack monitoring, newsletter, Notion record.
 3. Researches selected companies in parallel and scores opportunity + confidence.
 4. Writes a **Google Doc** as the canonical report (headings, outline, facts / interpretations / questions).
@@ -17,6 +17,8 @@ Scout then:
 7. Sends a weekly **Gmail newsletter** (hero + company marks + editorial brief). A demo trigger sends the same letter.
 
 This repo implements [DESIGN.md](DESIGN.md). Demo checklist: [docs/DEMO.md](docs/DEMO.md).
+
+**Demo video:** [https://youtu.be/qCw7-3Pkf5c](https://youtu.be/qCw7-3Pkf5c)
 
 ## Stack
 
@@ -45,7 +47,7 @@ This repo implements [DESIGN.md](DESIGN.md). Demo checklist: [docs/DEMO.md](docs
 - `src/lib/core` — discovery, pipeline, agent, scoring, receipts, monitoring, newsletter, diligence writer.
 - `src/lib/observability` — Langfuse + redaction.
 - `src/app` — UI, API, cron, server actions.
-- `evals` — 12 scenarios × 3 trials, Pass³, never fabricated scores.
+- `evals` — 6 thesis-pipeline scenarios, never fabricated scores.
 
 ## Setup
 
@@ -65,7 +67,7 @@ This repo implements [DESIGN.md](DESIGN.md). Demo checklist: [docs/DEMO.md](docs
 | `npm run test` | Vitest |
 | `npm run db:generate` / `db:push` | Drizzle |
 | `npm run db:seed` | Seed the thesis demo run |
-| `npm run eval` | 12×3 reliability suite (mocked connectors, real Claude) → `evals/report.json` |
+| `npm run eval` | Thesis reliability suite (mocked connectors, real Claude) → `evals/report.json` |
 
 ## Connectors
 
@@ -104,4 +106,4 @@ Confidence = `0.40·sourceQuality + 0.30·corroboration + 0.20·recency + 0.10·
 
 ## Evaluation
 
-`npm run eval` runs 36 trajectories with mocked connectors and the real agent. Hard gates: grounding, no unauthorized/duplicate writes, injection resistance, Pass³. `/evals` shows that report only — it never invents a passing score.
+`npm run eval` runs 6 thesis-pipeline scenarios (discovery, grounded diligence, injection, idempotent writes, material release, noise). Connectors are mocked; Claude runs for discovery and diligence. `/evals` shows that report only — it never invents a passing score.

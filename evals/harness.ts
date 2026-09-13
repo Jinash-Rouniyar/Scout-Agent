@@ -3,25 +3,26 @@ import { db } from "@/lib/db/client";
 import {
   scoutRuns,
   entities,
-  identityCandidates,
   claims as claimsTable,
   sources as sourcesTable,
   dossiers,
   watches,
   snapshots,
   runEvents,
+  discoveredCompanies,
 } from "@/lib/db/schema";
-import { detectInputKind } from "@/lib/core/input";
 import { executeRun } from "@/lib/core/pipeline";
-import { createDiligencePack } from "@/lib/core/writer";
+import { createCompanyDiligence } from "@/lib/core/writer";
 import { monitorEntity } from "@/lib/core/monitoring";
 import { makeFixtureConnectors, type WriteLog } from "@/lib/connectors/fixtures";
 import { id } from "@/lib/util/ids";
 import { startTrace } from "@/lib/observability/langfuse";
 import type { Scenario, Trajectory } from "./types";
 
-/** Run one real trial for a scenario. Connectors are mocked; the Scout agent,
- *  Claude Sonnet 5, validators, scoring, and monitoring all run for real. */
+const RESEARCH_DEADLINE_MS = 180_000;
+
+/** Run one trial. Connectors are mocked; Claude, validators, scoring, and
+ *  monitoring run for real on the thesis pipeline. */
 export async function runTrial(scenario: Scenario): Promise<Trajectory> {
   const { connectors, writes } = makeFixtureConnectors(scenario.fixtures);
   const trace = startTrace("eval-scenario", { scenario: scenario.id, family: scenario.family });
@@ -32,7 +33,12 @@ export async function runTrial(scenario: Scenario): Promise<Trajectory> {
       t.traceId = trace.id;
       return t;
     }
-    const t = await runResearchTrial(scenario, connectors, writes, trace);
+    if (scenario.kind === "duplicate_write") {
+      const t = await runDuplicateWriteTrial(scenario, connectors, writes, trace);
+      t.traceId = trace.id;
+      return t;
+    }
+    const t = await runThesisTrial(scenario, connectors, writes, trace);
     t.traceId = trace.id;
     return t;
   } finally {
@@ -40,72 +46,171 @@ export async function runTrial(scenario: Scenario): Promise<Trajectory> {
   }
 }
 
-async function runResearchTrial(
+async function runThesisTrial(
   scenario: Scenario,
   connectors: ReturnType<typeof makeFixtureConnectors>["connectors"],
   writes: WriteLog[],
   trace: ReturnType<typeof startTrace>,
 ): Promise<Trajectory> {
   const runId = id("evalrun");
-  await db.insert(scoutRuns).values({
-    id: runId,
-    input: scenario.input,
-    inputKind: detectInputKind(scenario.input),
-    thesis: scenario.thesis ?? null,
-    state: "CREATED",
-  });
+  const thesis = scenario.thesis ?? scenario.input;
 
-  await executeRun(runId, { connectors, deadline: Date.now() + 120_000, trace });
-
-  // Duplicate-write scenario: approve the pack TWICE with the same connectors.
-  if (scenario.kind === "duplicate_write") {
-    const [afterResearch] = await db.select().from(scoutRuns).where(eq(scoutRuns.id, runId)).limit(1);
-    if (afterResearch.state === "READY_FOR_REVIEW") {
-      await createDiligencePack(runId, connectors);
-      await createDiligencePack(runId, connectors); // second attempt must reuse receipts
-      await db.update(scoutRuns).set({ state: "WATCHING" }).where(eq(scoutRuns.id, runId));
-    }
+  if (scenario.kind === "thesis_diligence" && scenario.seedCompany) {
+    const seed = scenario.seedCompany;
+    await db.insert(scoutRuns).values({
+      id: runId,
+      input: thesis,
+      inputKind: "thesis",
+      thesis,
+      state: "RESEARCHING",
+    });
+    await db.insert(discoveredCompanies).values({
+      id: id("cmp"),
+      runId,
+      rank: 1,
+      name: seed.name,
+      domain: seed.domain ?? null,
+      githubOrg: seed.githubOrg ?? null,
+      oneLiner: seed.oneLiner,
+      whyMatch: seed.whyMatch,
+      selected: true,
+      optSlack: seed.optSlack ?? false,
+      optEmail: seed.optEmail ?? false,
+      optNotion: seed.optNotion ?? false,
+      status: "pending",
+    });
+  } else {
+    await db.insert(scoutRuns).values({
+      id: runId,
+      input: thesis,
+      inputKind: "thesis",
+      thesis,
+      state: "CREATED",
+    });
   }
 
-  return buildResearchTrajectory(runId, scenario, writes);
+  await executeRun(runId, { connectors, deadline: Date.now() + RESEARCH_DEADLINE_MS, trace });
+  return buildThesisTrajectory(runId, scenario, writes);
 }
 
-async function buildResearchTrajectory(runId: string, scenario: Scenario, writes: WriteLog[]): Promise<Trajectory> {
+async function runDuplicateWriteTrial(
+  scenario: Scenario,
+  connectors: ReturnType<typeof makeFixtureConnectors>["connectors"],
+  writes: WriteLog[],
+  trace: ReturnType<typeof startTrace>,
+): Promise<Trajectory> {
+  if (!process.env.SLACK_CHANNEL_ID) process.env.SLACK_CHANNEL_ID = "C_EVAL";
+
+  const runId = id("evalrun");
+  const entityId = id("evalent");
+  const thesis = scenario.thesis ?? scenario.input;
+
+  await db.insert(entities).values({
+    id: entityId,
+    kind: "company",
+    canonicalName: "Pack Co",
+    companyGithubOrg: "pack-dev",
+    identityConfidence: 1,
+    resolvedAt: new Date(),
+  });
+  await db.insert(scoutRuns).values({
+    id: runId,
+    input: thesis,
+    inputKind: "thesis",
+    thesis,
+    state: "COMPLETED",
+  });
+  await db.insert(dossiers).values({
+    id: id("dossier"),
+    runId,
+    entityId,
+    whyNow: "Shipped a public platform with recent releases.",
+    summary: "Pack Co is an early developer-infrastructure company.",
+    opportunityScore: 70,
+    confidenceScore: 65,
+    label: "Promising",
+    timeline: [],
+  });
+  await db.insert(claimsTable).values({
+    id: id("claim"),
+    runId,
+    entityId,
+    category: "fact",
+    text: "Public GitHub org pack-dev ships an open-source platform.",
+    sourceIds: [],
+    status: "validated",
+  });
+  await db.insert(discoveredCompanies).values({
+    id: id("cmp"),
+    runId,
+    rank: 1,
+    name: "Pack Co",
+    githubOrg: "pack-dev",
+    oneLiner: "Developer platform",
+    whyMatch: "Open-source traction",
+    selected: true,
+    optSlack: true,
+    optNotion: true,
+    optEmail: false,
+    entityId,
+    status: "ready",
+  });
+
+  await createCompanyDiligence({
+    runId,
+    entityId,
+    thesis,
+    options: { slack: true, email: false, notion: true },
+    connectors,
+    trace,
+  });
+  await createCompanyDiligence({
+    runId,
+    entityId,
+    thesis,
+    options: { slack: true, email: false, notion: true },
+    connectors,
+    trace,
+  });
+
+  return {
+    ...writeTrajectory(writes),
+    toolCalls: [],
+    storedSourceUrls: [],
+    claims: [],
+    validationOk: true,
+    discoveredCompanies: [{ name: "Pack Co", status: "ready" }],
+    finalState: "COMPLETED",
+  };
+}
+
+async function buildThesisTrajectory(runId: string, scenario: Scenario, writes: WriteLog[]): Promise<Trajectory> {
   const [run] = await db.select().from(scoutRuns).where(eq(scoutRuns.id, runId)).limit(1);
   const evs = await db.select().from(runEvents).where(eq(runEvents.runId, runId));
   const toolCalls = evs
-    .filter((e) => e.type === "tool.call")
+    .filter((e) => e.type === "tool.call" || e.type === "discovery.tool")
     .map((e) => (e.payload as { name?: string } | null)?.name)
     .filter((n): n is string => Boolean(n));
   const srcs = await db.select().from(sourcesTable).where(eq(sourcesTable.runId, runId));
   const storedIds = new Set(srcs.map((s) => s.id));
   const claimRows = await db.select().from(claimsTable).where(eq(claimsTable.runId, runId));
+  const companies = await db.select().from(discoveredCompanies).where(eq(discoveredCompanies.runId, runId));
   const [dossier] = await db.select().from(dossiers).where(eq(dossiers.runId, runId)).limit(1);
-  const cands = await db.select().from(identityCandidates).where(eq(identityCandidates.runId, runId));
+  const breakdown = (dossier?.scoreBreakdown as { opportunity?: { riskPenalty?: number } } | null) ?? null;
 
   const claims = claimRows.map((c) => ({
     category: c.category as Trajectory["claims"][number]["category"],
     text: c.text,
-    grounded: c.category !== "fact" || ((c.sourceIds ?? []).length > 0 && (c.sourceIds ?? []).every((s) => storedIds.has(s))),
+    grounded:
+      c.category !== "fact" ||
+      ((c.sourceIds ?? []).length > 0 && (c.sourceIds ?? []).every((s) => storedIds.has(s))),
   }));
 
-  // Duplicate detection: >1 external id for the same app+method.
-  const seen = new Map<string, Set<string>>();
-  for (const w of writes) {
-    const key = `${w.app}:${w.method}`;
-    const set = seen.get(key) ?? new Set();
-    set.add(w.externalId);
-    seen.set(key, set);
-  }
-  const duplicateWriteDetected = [...seen.values()].some((s) => s.size > 1);
-
-  const breakdown = (dossier?.scoreBreakdown as { opportunity?: { riskPenalty?: number } } | null) ?? null;
-
   let behavior: Trajectory["behavior"];
-  if (run.state === "RESOLVING_IDENTITY" && cands.length > 0) behavior = "needs_confirmation";
+  if (run.state === "AWAITING_SELECTION") behavior = "awaiting_selection";
   else if (scenario.family === "prompt_injection") behavior = "ignore_injection";
-  else if (run.state === "READY_FOR_REVIEW" || run.state === "WATCHING") behavior = "auto_research";
-  else if (run.state === "REVIEW_NEEDED") behavior = "insufficient_evidence";
+  else if (companies.some((c) => c.status === "ready")) behavior = "auto_research";
+  else if (companies.some((c) => c.status === "failed") || run.state === "REVIEW_NEEDED") behavior = "insufficient_evidence";
 
   return {
     toolCalls,
@@ -115,15 +220,33 @@ async function buildResearchTrajectory(runId: string, scenario: Scenario, writes
     opportunity: dossier?.opportunityScore ?? undefined,
     confidence: dossier?.confidenceScore ?? undefined,
     riskPenalty: breakdown?.opportunity?.riskPenalty,
-    writes: writes.map((w) => ({ app: w.app, method: w.method, externalId: w.externalId })),
-    duplicateWriteDetected,
+    ...writeTrajectory(writes),
+    discoveredCompanies: companies.map((c) => ({ name: c.name, status: c.status })),
     finalState: run.state,
     behavior,
     error: run.error ?? undefined,
   };
 }
 
-async function runMonitoringTrial(scenario: Scenario, connectors: ReturnType<typeof makeFixtureConnectors>["connectors"], writes: WriteLog[]): Promise<Trajectory> {
+function writeTrajectory(writes: WriteLog[]): Pick<Trajectory, "writes" | "duplicateWriteDetected"> {
+  const seen = new Map<string, Set<string>>();
+  for (const w of writes) {
+    const key = `${w.app}:${w.method}`;
+    const set = seen.get(key) ?? new Set();
+    set.add(w.externalId);
+    seen.set(key, set);
+  }
+  return {
+    writes: writes.map((w) => ({ app: w.app, method: w.method, externalId: w.externalId })),
+    duplicateWriteDetected: [...seen.values()].some((s) => s.size > 1),
+  };
+}
+
+async function runMonitoringTrial(
+  scenario: Scenario,
+  connectors: ReturnType<typeof makeFixtureConnectors>["connectors"],
+  writes: WriteLog[],
+): Promise<Trajectory> {
   const m = scenario.monitoring!;
   const entityId = id("evalent");
   await db.insert(entities).values({
@@ -148,7 +271,6 @@ async function runMonitoringTrial(scenario: Scenario, connectors: ReturnType<typ
     slackThreadTs: m.withThreadAndPage ? `slackts_eval_${entityId}` : null,
   });
 
-  // Seed the 7-day baseline snapshot.
   if (m.baselineGithub && m.baselineDaysAgo) {
     await db.insert(snapshots).values({
       id: id("snap"),
@@ -162,7 +284,6 @@ async function runMonitoringTrial(scenario: Scenario, connectors: ReturnType<typ
 
   const [watch] = await db.select().from(watches).where(eq(watches.id, watchId)).limit(1);
   const first = await monitorEntity(watch, connectors);
-  // Second run must be a no-op for writes (dedupe / idempotency).
   const second = await monitorEntity(watch, connectors);
 
   return {
@@ -170,7 +291,7 @@ async function runMonitoringTrial(scenario: Scenario, connectors: ReturnType<typ
     storedSourceUrls: [],
     claims: [],
     validationOk: true,
-    writes: writes.map((w) => ({ app: w.app, method: w.method, externalId: w.externalId })),
+    ...writeTrajectory(writes),
     duplicateWriteDetected: second.wrote > 0,
     signals: first.detected.map((d) => ({ kind: d.kind, materiality: d.materiality })),
     finalState: "WATCHING",

@@ -32,17 +32,23 @@ The run-page **Send newsletter** field always sends a fresh letter to the addres
 
 ## 3. Two-minute walkthrough
 
+A live thesis run can consume the whole two minutes. Do not start `npm run eval` during the talk — run it beforehand.
+
+**If time is already gone after the live agent:** open `/evals` only. That page is the reliability brief: measured `evals/report.json`, never invented scores.
+
 | Time | Action | Proves |
 |---|---|---|
-| 0:00–0:15 | Enter a thesis on `/` | Thesis-first UI |
+| 0:00–0:15 | Enter a thesis on `/` (or open `/runs/run_demo_thesis`) | Thesis-first UI |
 | 0:15–0:40 | Discovery → select companies + Slack / newsletter / Notion | Human configure, not dump-everywhere |
 | 0:40–1:05 | Parallel research; open the Google Doc | Outline-ready memo, scored brief |
 | 1:05–1:25 | Slack + Notion + `/watchlist` | Differentiated surfaces |
 | 1:25–1:45 | **Send newsletter** | Hero, logos, editorial letter |
-| 1:45–2:00 | `/evals` and Langfuse | Reliability measured, never invented |
+| 1:45–2:00 | `/evals` — flash the measured dashboard | Reliability measured, never invented |
 
 Use `/runs/run_demo_thesis` if you need a completed pack without waiting on a cold discovery.
 
 ## 4. Reliability evidence
 
-`npm run eval` (needs `DATABASE_URL` + `ANTHROPIC_API_KEY`) writes `evals/report.json`. `/evals` shows that file only. Present the real Pass³ number — or the honest empty state — never a target value.
+`npm run eval` writes `evals/report.json` from 6 thesis-pipeline scenarios. `/evals` shows that file only.
+
+Talk track (~15 seconds): facts need sources; discovery cannot invent companies; a malicious page cannot trigger Slack; Doc/Notion/Slack are receipt-keyed; a release alerts and a star-bump does not. Point at the measured cards. Do not narrate a target score.

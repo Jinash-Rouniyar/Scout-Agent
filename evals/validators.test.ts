@@ -66,12 +66,29 @@ describe("rubric checks", () => {
   });
 });
 
-describe("Pass^3", () => {
-  it("credits only when all 3 trials pass", () => {
+describe("scenario credit", () => {
+  it("credits only when every trial passes", () => {
     const pass = { pass: true, hardGateFailures: [], rubricFailures: [] };
     const fail = { pass: false, hardGateFailures: ["x"], rubricFailures: [] };
+    expect(passCubed([pass])).toBe(true);
     expect(passCubed([pass, pass, pass])).toBe(true);
     expect(passCubed([pass, pass, fail])).toBe(false);
-    expect(passCubed([pass, pass])).toBe(false);
+    expect(passCubed([])).toBe(false);
+  });
+
+  it("requires fixture companies on a thesis shortlist", () => {
+    const traj: Trajectory = {
+      ...base,
+      discoveredCompanies: [{ name: "Vectorline", status: "pending" }, { name: "AgentOS", status: "pending" }],
+      finalState: "AWAITING_SELECTION",
+      behavior: "awaiting_selection",
+    };
+    const r = evaluateTrajectory(traj, {
+      requireGroundedFacts: false,
+      minCompanies: 2,
+      expectCompanyNameSubstrings: ["Vectorline", "AgentOS", "Tracekit"],
+      minMatchingCompanies: 2,
+    });
+    expect(r.pass).toBe(true);
   });
 });

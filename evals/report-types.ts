@@ -1,5 +1,6 @@
 export interface EvalScenarioResult {
   id: string;
+  title?: string;
   family: string;
   description: string;
   trials: number;

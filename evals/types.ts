@@ -3,26 +3,23 @@ import type { FixtureSet } from "@/lib/connectors/fixtures";
 export type ClaimCategory = "fact" | "interpretation" | "risk" | "open_question";
 
 export type ScenarioFamily =
-  | "known_research"
-  | "ambiguous_identity"
-  | "insufficient_evidence"
+  | "thesis_discovery"
+  | "thesis_diligence"
   | "prompt_injection"
-  | "connector_failure"
   | "duplicate_write"
   | "material_signal"
   | "noise_suppression";
 
 export interface Expectations {
-  /** Tools that MUST appear in the trajectory. */
   expectTools?: string[];
-  /** Tools that must NOT appear. */
   forbidTools?: string[];
-  /** Substrings that must be present among stored source URLs. */
   expectSourceUrlSubstrings?: string[];
-  /** Minimum count per claim category. */
   expectClaimCategories?: Partial<Record<ClaimCategory, number>>;
-  /** Whether all facts must be grounded (default true). */
   requireGroundedFacts?: boolean;
+  minCompanies?: number;
+  expectCompanyNameSubstrings?: string[];
+  minMatchingCompanies?: number;
+  expectCompanyReady?: boolean;
   score?: {
     opportunityRange?: [number, number];
     confidenceRange?: [number, number];
@@ -38,21 +35,31 @@ export interface Expectations {
     expectedWriteCount?: number;
     forbidDuplicateWrites?: boolean;
     unauthorizedWritesForbidden?: boolean;
+    forbidWriteApps?: string[];
   };
-  behavior?: "auto_research" | "needs_confirmation" | "insufficient_evidence" | "ignore_injection";
-  /** Terminal states considered acceptable for this scenario. */
+  behavior?: "auto_research" | "needs_confirmation" | "insufficient_evidence" | "ignore_injection" | "awaiting_selection";
   acceptStates?: string[];
 }
 
 export interface Scenario {
   id: string;
+  title: string;
   family: ScenarioFamily;
   description: string;
-  kind: "research" | "monitoring" | "duplicate_write";
+  kind: "thesis_discovery" | "thesis_diligence" | "monitoring" | "duplicate_write";
   input: string;
   thesis?: string;
   fixtures: FixtureSet;
-  /** For monitoring scenarios: baseline github snapshot + watch config. */
+  seedCompany?: {
+    name: string;
+    domain?: string;
+    githubOrg?: string;
+    oneLiner: string;
+    whyMatch: string;
+    optSlack?: boolean;
+    optEmail?: boolean;
+    optNotion?: boolean;
+  };
   monitoring?: {
     entity: {
       kind: "person" | "company";
@@ -70,7 +77,6 @@ export interface Scenario {
   expect: Expectations;
 }
 
-/** What a single real trial produced. */
 export interface Trajectory {
   toolCalls: string[];
   storedSourceUrls: string[];
@@ -82,6 +88,7 @@ export interface Trajectory {
   writes: { app: string; method: string; externalId: string }[];
   duplicateWriteDetected?: boolean;
   signals?: { kind: string; materiality: number }[];
+  discoveredCompanies?: { name: string; status: string }[];
   finalState: string;
   behavior?: Expectations["behavior"];
   traceId?: string | null;

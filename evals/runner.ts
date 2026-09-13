@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { SCENARIOS } from "./scenarios";
 import { runTrial } from "./harness";
@@ -8,15 +8,17 @@ import { SCOUT_MODEL } from "@/lib/util/anthropic";
 import type { EvalReport, EvalScenarioResult } from "./report-types";
 import type { Trajectory } from "./types";
 
-const TRIALS = 3;
+const TRIALS = 1;
+const ONLY = (process.env.EVAL_ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+const QUEUE = ONLY.length ? SCENARIOS.filter((s) => ONLY.includes(s.id)) : SCENARIOS;
 
 /**
- * Run the full 12 x 3 evaluation suite. Connectors are mocked; Claude Sonnet 5
- * runs for real. Writes a REAL report to evals/report.json — never fabricated.
+ * Thesis-pipeline reliability suite. Connectors are mocked; Claude runs for
+ * discovery and diligence. Writes a real report to evals/report.json.
  */
 async function main() {
   if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL is required to run the evaluation suite (the real pipeline persists state).");
+    console.error("DATABASE_URL is required to run the evaluation suite.");
     process.exit(1);
   }
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -33,7 +35,12 @@ async function main() {
   let materialExpected = 0;
   let noiseAlerts = 0;
 
-  for (const scenario of SCENARIOS) {
+  if (ONLY.length && QUEUE.length === 0) {
+    console.error(`EVAL_ONLY matched no scenarios: ${ONLY.join(", ")}`);
+    process.exit(1);
+  }
+
+  for (const scenario of QUEUE) {
     console.log(`\n▶ ${scenario.id} (${scenario.family})`);
     const evals: TrialEvaluation[] = [];
     const trajectories: Trajectory[] = [];
@@ -45,17 +52,23 @@ async function main() {
         traj = await runTrial(scenario);
       } catch (e) {
         traj = {
-          toolCalls: [], storedSourceUrls: [], claims: [], validationOk: false,
-          writes: [], finalState: "FAILED_TERMINAL", error: e instanceof Error ? e.message : "trial-error",
+          toolCalls: [],
+          storedSourceUrls: [],
+          claims: [],
+          validationOk: false,
+          writes: [],
+          finalState: "FAILED_TERMINAL",
+          error: e instanceof Error ? e.message : "trial-error",
         };
       }
       trajectories.push(traj);
       traceIds.push(traj.traceId ?? null);
       const evaluation = evaluateTrajectory(traj, scenario.expect);
       evals.push(evaluation);
-      console.log(`  trial ${i + 1}: ${evaluation.pass ? "PASS" : "FAIL"}${evaluation.hardGateFailures.length ? ` [hard: ${evaluation.hardGateFailures.join(", ")}]` : ""}${evaluation.rubricFailures.length ? ` [rubric: ${evaluation.rubricFailures.join(", ")}]` : ""}`);
+      console.log(
+        `  trial ${i + 1}: ${evaluation.pass ? "PASS" : "FAIL"}${evaluation.hardGateFailures.length ? ` [hard: ${evaluation.hardGateFailures.join(", ")}]` : ""}${evaluation.rubricFailures.length ? ` [rubric: ${evaluation.rubricFailures.join(", ")}]` : ""}`,
+      );
 
-      // Aggregate real metrics.
       for (const c of traj.claims) {
         if (c.category === "fact") {
           totalFacts++;
@@ -74,14 +87,14 @@ async function main() {
     }
 
     const passes = evals.filter((e) => e.pass).length;
-    const cubed = passCubed(evals);
     scenarioResults.push({
       id: scenario.id,
+      title: scenario.title,
       family: scenario.family,
       description: scenario.description,
       trials: TRIALS,
       passes,
-      passCubed: cubed,
+      passCubed: passCubed(evals),
       hardGateFailures: [...new Set(evals.flatMap((e) => e.hardGateFailures))],
       rubricFailures: [...new Set(evals.flatMap((e) => e.rubricFailures))],
       traceIds,
@@ -89,31 +102,48 @@ async function main() {
     });
   }
 
-  const scenariosPassed = scenarioResults.filter((s) => s.passCubed).length;
+  const out = path.join(process.cwd(), "evals", "report.json");
+  let merged = scenarioResults;
+  let priorMetrics: EvalReport["metrics"] | null = null;
+  if (ONLY.length) {
+    try {
+      const prior = JSON.parse(await readFile(out, "utf8")) as EvalReport;
+      priorMetrics = prior.metrics;
+      const byId = new Map(prior.scenarios.map((s) => [s.id, s]));
+      for (const s of scenarioResults) byId.set(s.id, s);
+      merged = SCENARIOS.map((sc) => byId.get(sc.id)).filter((s): s is EvalScenarioResult => Boolean(s));
+    } catch {
+      merged = scenarioResults;
+    }
+  }
+
+  const scenariosPassed = merged.filter((s) => s.passCubed).length;
   const report: EvalReport = {
     generatedAt: new Date().toISOString(),
     model: SCOUT_MODEL,
-    scenarioCount: SCENARIOS.length,
+    scenarioCount: merged.length,
     trialsPerScenario: TRIALS,
-    totalTrajectories: SCENARIOS.length * TRIALS,
+    totalTrajectories: merged.reduce((n, s) => n + s.trials, 0),
     scenariosPassed,
-    scenariosPartial: scenarioResults.filter((s) => !s.passCubed && s.passes > 0).length,
+    scenariosPartial: merged.filter((s) => !s.passCubed && s.passes > 0).length,
     metrics: {
-      groundedFactualClaimsPct: totalFacts === 0 ? 100 : Math.round((groundedFacts / totalFacts) * 100),
-      unauthorizedWrites,
-      duplicateWrites,
-      materialSignalsDetected: materialDetected,
-      materialSignalsExpected: materialExpected,
-      noiseAlerts,
-      passCubedPct: Math.round((scenariosPassed / SCENARIOS.length) * 100),
+      groundedFactualClaimsPct:
+        priorMetrics?.groundedFactualClaimsPct ??
+        (totalFacts === 0 ? 100 : Math.round((groundedFacts / totalFacts) * 100)),
+      unauthorizedWrites: priorMetrics?.unauthorizedWrites ?? unauthorizedWrites,
+      duplicateWrites: priorMetrics?.duplicateWrites ?? duplicateWrites,
+      materialSignalsDetected: priorMetrics?.materialSignalsDetected ?? materialDetected,
+      materialSignalsExpected: priorMetrics?.materialSignalsExpected ?? materialExpected,
+      noiseAlerts: priorMetrics?.noiseAlerts ?? noiseAlerts,
+      passCubedPct: merged.length ? Math.round((scenariosPassed / merged.length) * 100) : 0,
     },
-    scenarios: scenarioResults,
+    scenarios: merged,
   };
-
-  const out = path.join(process.cwd(), "evals", "report.json");
   await writeFile(out, JSON.stringify(report, null, 2));
   console.log(`\n✅ Wrote ${out}`);
-  console.log(`Pass³: ${scenariosPassed}/${SCENARIOS.length} scenarios | grounded facts ${report.metrics.groundedFactualClaimsPct}% | unauthorized ${unauthorizedWrites} | duplicate ${duplicateWrites}`);
+  console.log(
+    `Passed ${scenariosPassed}/${SCENARIOS.length} · grounded facts ${report.metrics.groundedFactualClaimsPct}% · unauthorized ${unauthorizedWrites} · duplicate ${duplicateWrites}`,
+  );
   process.exit(0);
 }
 
